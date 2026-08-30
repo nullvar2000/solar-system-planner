@@ -1,0 +1,12 @@
+{
+  "name": "solar-system-planner",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel -r dev",
+    "dev:client": "pnpm --filter client dev",
+    "dev:server": "pnpm --filter server dev",
+    "build": "pnpm -r build",
+    "seed": "pnpm --filter server seed"
+  }
+}
