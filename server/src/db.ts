@@ -3,7 +3,9 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const dbPath = resolve(__dirname, '../data/solar.db')
+const dbPath = process.env.SOLAR_DB_PATH
+  ? resolve(process.env.SOLAR_DB_PATH)
+  : resolve(__dirname, '../data/solar.db')
 
 export const db = new Database(dbPath)
 
