@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Standard gate: typecheck/build + unit tests must pass before any commit.
+set -e
+pnpm build
+pnpm test
