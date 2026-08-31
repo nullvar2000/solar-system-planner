@@ -3,7 +3,7 @@ import { useCallback } from 'react'
 import { Battery, Inverter, Panel, PlacedDevice } from '../../types'
 import { useCanvasStore } from '../../store/canvas'
 import { canConnect } from '../../lib/topology'
-import { deviceSize, getTerminals, POLARITY_COLORS, SNAP_PX, TerminalDef } from '../../lib/terminals'
+import { deviceSize, getTerminals, POLARITY_COLORS, GRID_PX, TerminalDef } from '../../lib/terminals'
 
 const TERMINAL_RADIUS = 6
 const HANDLE_SIZE = 10
@@ -35,8 +35,8 @@ export function DeviceNode({ device, panel, inverter, battery }: Props) {
       const pos = e.target.position()
       moveDevice(
         device.id,
-        Math.round(pos.x / SNAP_PX) * SNAP_PX,
-        Math.round(pos.y / SNAP_PX) * SNAP_PX
+        Math.round(pos.x / GRID_PX) * GRID_PX,
+        Math.round(pos.y / GRID_PX) * GRID_PX
       )
     },
     [device.id, moveDevice]
@@ -55,8 +55,8 @@ export function DeviceNode({ device, panel, inverter, battery }: Props) {
       e.cancelBubble = true
       resizeDevice(
         device.id,
-        Math.max(40, Math.round(e.target.x() / SNAP_PX) * SNAP_PX),
-        Math.max(30, Math.round(e.target.y() / SNAP_PX) * SNAP_PX)
+        Math.max(40, Math.round(e.target.x() / GRID_PX) * GRID_PX),
+        Math.max(30, Math.round(e.target.y() / GRID_PX) * GRID_PX)
       )
     },
     [device.id, resizeDevice]

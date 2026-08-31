@@ -3,7 +3,6 @@ import { DeviceKind, Inverter, PlacedDevice } from '../types'
 export const SCALE = 1.5
 
 export const GRID_PX = 20
-export const SNAP_PX = 10
 
 export const DEVICE_SIZES: Record<Exclude<DeviceKind, 'panel'>, { width: number; height: number }> = {
   inverter: { width: 140, height: 100 },

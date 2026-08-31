@@ -10,7 +10,6 @@ import {
   DEVICE_SIZES,
   GRID_PX,
   SCALE,
-  SNAP_PX,
   combinerWidth,
   getTerminalPosition,
   terminalPolarity
@@ -178,21 +177,25 @@ export function SolarCanvas() {
     const pointer = stageRef.current?.getPointerPosition()
     if (!pointer) return
     const world = toWorld(pointer)
-    const x = Math.round(world.x / SNAP_PX) * SNAP_PX
-    const y = Math.round(world.y / SNAP_PX) * SNAP_PX
+    const x = Math.round(world.x / GRID_PX) * GRID_PX
+    const y = Math.round(world.y / GRID_PX) * GRID_PX
     s.placeDevice(placement.kind, placement.refId, x, y, sz.width, sz.height)
   }
 
+  // Draw the grid in screen space (not inside the scaled layer) so lines
+  // stay crisp, perfectly parallel, and aligned to whole pixels.
   const gridPoints = useMemo(() => {
-    const left = (0 - view.x) / view.scale
-    const top = (0 - view.y) / view.scale
-    const right = (size.width - view.x) / view.scale
-    const bottom = (size.height - view.y) / view.scale
+    const base = GRID_PX * view.scale
+    const step = base < 8 ? base * Math.ceil(8 / base) : base
     const points: number[] = []
-    const x0 = Math.floor(left / GRID_PX) * GRID_PX
-    for (let x = x0; x <= right; x += GRID_PX) points.push(x, top, x, bottom)
-    const y0 = Math.floor(top / GRID_PX) * GRID_PX
-    for (let y = y0; y <= bottom; y += GRID_PX) points.push(left, y, right, y)
+    for (let x = ((view.x % step) + step) % step; x <= size.width; x += step) {
+      const px = Math.round(x) + 0.5
+      points.push(px, 0, px, size.height)
+    }
+    for (let y = ((view.y % step) + step) % step; y <= size.height; y += step) {
+      const py = Math.round(y) + 0.5
+      points.push(0, py, size.width, py)
+    }
     return points
   }, [view, size])
 
@@ -229,13 +232,10 @@ export function SolarCanvas() {
           cursor: activePlacement || pendingConnection ? 'crosshair' : 'default'
         }}
       >
+        <Layer listening={false}>
+          {gridPoints.length > 0 && <Line points={gridPoints} stroke="#e7e5e4" strokeWidth={1} />}
+        </Layer>
         <Layer x={view.x} y={view.y} scaleX={view.scale} scaleY={view.scale}>
-          <Line
-            points={gridPoints}
-            stroke="#e7e5e4"
-            strokeWidth={1 / view.scale}
-            listening={false}
-          />
           {connections.map((c) => (
             <ConnectionLine
               key={c.id}
