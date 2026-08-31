@@ -6,8 +6,9 @@ import { estimateProduction } from '../../lib/electrical'
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })
 
 export function ProductionPanel() {
-  const { placedPanels } = useCanvasStore()
+  const { devices } = useCanvasStore()
   const { panels } = usePanelStore()
+  const panelCount = devices.filter((d) => d.kind === 'panel').length
 
   const [peakSunHours, setPeakSunHours] = useState('5')
   const [ambient, setAmbient] = useState('25')
@@ -16,8 +17,8 @@ export function ProductionPanel() {
     const psh = parseFloat(peakSunHours)
     const amb = parseFloat(ambient)
     if (!Number.isFinite(psh) || !Number.isFinite(amb) || psh <= 0) return null
-    return estimateProduction(placedPanels, panels, psh, amb)
-  }, [placedPanels, panels, peakSunHours, ambient])
+    return estimateProduction(devices, panels, psh, amb)
+  }, [devices, panels, peakSunHours, ambient])
 
   return (
     <div>
@@ -47,7 +48,7 @@ export function ProductionPanel() {
         </div>
       </div>
 
-      {placedPanels.length === 0 ? (
+      {panelCount === 0 ? (
         <p className="text-sm text-gray-400">Place panels to estimate production</p>
       ) : est ? (
         <div className="space-y-2">

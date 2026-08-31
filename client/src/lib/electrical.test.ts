@@ -8,10 +8,10 @@ import {
   deratingFactor,
   estimateProduction,
   panelMap,
-  validateInverter
+  validatePlacedInverter
 } from './electrical'
-import type { StringInfo } from './topology'
-import type { Inverter, Panel, PlacedPanel } from '../types'
+import type { GroupInfo } from './topology'
+import type { Inverter, Panel, PlacedDevice } from '../types'
 
 const makePanel = (id: number, over: Partial<Panel> = {}): Panel => ({
   id,
@@ -30,21 +30,24 @@ const makePanel = (id: number, over: Partial<Panel> = {}): Panel => ({
   ...over
 })
 
-const placedPanel = (id: string, panelId: number): PlacedPanel => ({
+const panelDevice = (id: string, refId: number): PlacedDevice => ({
   id,
-  panelId,
+  kind: 'panel',
+  refId,
   x: 0,
   y: 0,
   width: 40,
   height: 40
 })
 
-const group = (runs: string[][]): StringInfo => ({
+const group = (runs: string[][], destination: GroupInfo['destination'] = null): GroupInfo => ({
   panelIds: runs.flat(),
   seriesStrings: runs,
   seriesCount: Math.max(...runs.map((r) => r.length)),
   parallelCount: runs.length,
-  totalPanels: runs.flat().length
+  totalPanels: runs.flat().length,
+  destination,
+  ends: null
 })
 
 const inverter = (over: Partial<Inverter> = {}): Inverter => ({
@@ -63,15 +66,25 @@ const inverter = (over: Partial<Inverter> = {}): Inverter => ({
 describe('panelMap', () => {
   it('maps placed panels to their catalog panel', () => {
     const catalog = [makePanel(1), makePanel(2)]
-    const placed = [placedPanel('a', 1), placedPanel('b', 2)]
+    const placed = [panelDevice('a', 1), panelDevice('b', 2)]
     const map = panelMap(placed, catalog)
     expect(map.get('a')).toBe(catalog[0])
     expect(map.get('b')).toBe(catalog[1])
   })
 
-  it('skips placed panels with no catalog match', () => {
-    const map = panelMap([placedPanel('a', 99)], [makePanel(1)])
+  it('skips non-panel devices and unmatched panels', () => {
+    const inverterDevice: PlacedDevice = {
+      id: 'inv-1',
+      kind: 'inverter',
+      refId: 1,
+      x: 0,
+      y: 0,
+      width: 140,
+      height: 100
+    }
+    const map = panelMap([panelDevice('a', 99), inverterDevice], [makePanel(1)])
     expect(map.has('a')).toBe(false)
+    expect(map.has('inv-1')).toBe(false)
   })
 })
 
@@ -151,7 +164,7 @@ describe('temperature derating', () => {
 describe('estimateProduction', () => {
   it('estimates daily, monthly and annual energy with derating', () => {
     const catalog = [makePanel(1, { pmax: 400 })]
-    const placed = [placedPanel('a', 1), placedPanel('b', 1)]
+    const placed = [panelDevice('a', 1), panelDevice('b', 1)]
     const est = estimateProduction(placed, catalog, 5, 25)
     expect(est.cellTempC).toBe(55)
     expect(est.derating).toBeCloseTo(0.91)
@@ -159,6 +172,23 @@ describe('estimateProduction', () => {
     expect(est.dailyKwh).toBeCloseTo(3.64)
     expect(est.monthlyKwh).toBeCloseTo(3.64 * 30.44)
     expect(est.annualKwh).toBeCloseTo(3.64 * 365)
+  })
+
+  it('ignores non-panel devices', () => {
+    const catalog = [makePanel(1, { pmax: 400 })]
+    const battery: PlacedDevice = {
+      id: 'bat-1',
+      kind: 'battery',
+      refId: 1,
+      x: 0,
+      y: 0,
+      width: 110,
+      height: 80,
+      batterySeries: 1,
+      batteryParallel: 1
+    }
+    const est = estimateProduction([panelDevice('a', 1), battery], catalog, 5, 25)
+    expect(est.deratedW).toBeCloseTo(364)
   })
 
   it('returns zeros with no panels', () => {
@@ -186,13 +216,33 @@ describe('calculateWireGauge', () => {
   })
 })
 
-describe('validateInverter', () => {
+describe('validatePlacedInverter', () => {
   const singlePanelMap = () => new Map<string, Panel>([['a', makePanel(1)]])
 
   it('passes a well-matched string', () => {
-    const v = validateInverter(inverter(), [group([['a']])], singlePanelMap())
+    const v = validatePlacedInverter(inverter(), new Map([[0, group([['a']])]]), singlePanelMap())
     expect(v.status).toBe('ok')
-    expect(v.checks.every((c) => c.status === 'ok')).toBe(true)
+    expect(v.checks.find((c) => c.label === 'MPPT 1')?.status).toBe('ok')
+    expect(v.checks.find((c) => c.label === 'PV inputs')?.detail).toBe('1 / 2 in use')
+  })
+
+  it('validates each input against its own group', () => {
+    const panels = new Map<string, Panel>([
+      ['a', makePanel(1)],
+      // 23A > 0.9 * 25A trips the current warn band
+      ['b', makePanel(2, { vmp: 10, voc: 12, imp: 23 })]
+    ])
+    const v = validatePlacedInverter(
+      inverter({ mppt_min_v: 5 }),
+      new Map<number, GroupInfo>([
+        [0, group([['a']])],
+        [1, group([['b']])]
+      ]),
+      panels
+    )
+    expect(v.checks.find((c) => c.label === 'MPPT 1')?.status).toBe('ok')
+    expect(v.checks.find((c) => c.label === 'MPPT 2')?.status).toBe('warn')
+    expect(v.status).toBe('warn')
   })
 
   it('fails when cold Voc exceeds the MPPT max', () => {
@@ -201,36 +251,25 @@ describe('validateInverter', () => {
       ['b', makePanel(2)],
       ['c', makePanel(3)]
     ])
-    const v = validateInverter(inverter(), [group([['a', 'b', 'c']])], panels)
+    const v = validatePlacedInverter(
+      inverter(),
+      new Map([[0, group([['a', 'b', 'c']])]]),
+      panels
+    )
     expect(v.status).toBe('fail')
-    const vocCheck = v.checks.find((c) => c.label.startsWith('Voc'))
-    expect(vocCheck?.status).toBe('fail')
+    expect(v.checks.find((c) => c.label === 'MPPT 1')?.status).toBe('fail')
   })
 
   it('warns when power is within 10% of the rating', () => {
     const panels = new Map<string, Panel>([['a', makePanel(1, { vmp: 200, voc: 80, imp: 7 })]])
-    const v = validateInverter(inverter(), [group([['a']])], panels)
+    const v = validatePlacedInverter(inverter(), new Map([[0, group([['a']])]]), panels)
     expect(v.status).toBe('warn')
-    const powerCheck = v.checks.find((c) => c.label === 'Power')
-    expect(powerCheck?.status).toBe('warn')
-  })
-
-  it('fails when the group count exceeds PV inputs', () => {
-    const panels = new Map<string, Panel>([
-      ['a', makePanel(1)],
-      ['b', makePanel(2)],
-      ['c', makePanel(3)]
-    ])
-    const v = validateInverter(
-      inverter(),
-      [group([['a']]), group([['b']]), group([['c']])],
-      panels
-    )
-    expect(v.status).toBe('fail')
-    expect(v.checks.find((c) => c.label === 'PV inputs')?.status).toBe('fail')
+    expect(v.checks.find((c) => c.label === 'Power')?.status).toBe('warn')
   })
 
   it('passes with no groups', () => {
-    expect(validateInverter(inverter(), [], new Map())).toEqual({ status: 'ok', checks: [] })
+    const v = validatePlacedInverter(inverter(), new Map(), new Map())
+    expect(v.status).toBe('ok')
+    expect(v.checks.find((c) => c.label === 'PV inputs')?.detail).toBe('0 / 2 in use')
   })
 })

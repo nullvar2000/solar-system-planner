@@ -1,47 +1,65 @@
 import { useMemo } from 'react'
 import { useCanvasStore } from '../../store/canvas'
 import { usePanelStore } from '../../store/panels'
-import { analyzeStrings, findTopologyWarnings } from '../../lib/topology'
+import { findStrings, findTopologyWarnings, deviceShortLabel } from '../../lib/topology'
 import { panelMap } from '../../lib/electrical'
 
 export function TopologyPanel() {
-  const { placedPanels, connections } = useCanvasStore()
+  const { devices, connections } = useCanvasStore()
   const { panels } = usePanelStore()
 
-  const strings = useMemo(
-    () => analyzeStrings(placedPanels, connections),
-    [placedPanels, connections]
+  const panelDevices = devices.filter((d) => d.kind === 'panel')
+  const groups = useMemo(
+    () => findStrings(devices, connections),
+    [devices, connections]
   )
   const warnings = useMemo(() => {
-    if (placedPanels.length === 0) return []
-    return findTopologyWarnings(placedPanels, connections, panelMap(placedPanels, panels))
-  }, [placedPanels, connections, panels])
+    if (panelDevices.length === 0) return []
+    return findTopologyWarnings(devices, connections, panelMap(devices, panels))
+  }, [devices, connections, panels, panelDevices.length])
+
+  const deviceById = useMemo(() => new Map(devices.map((d) => [d.id, d])), [devices])
+
+  const destLabel = (g: (typeof groups)[number]) => {
+    if (!g.destination) return null
+    const inv = deviceById.get(g.destination.deviceId)
+    if (!inv) return null
+    return `${deviceShortLabel(inv)} · MPPT ${g.destination.input + 1}`
+  }
 
   return (
     <div>
       <h2 className="text-sm font-semibold text-gray-500 uppercase mb-3">Strings</h2>
-      {placedPanels.length === 0 ? (
+      {panelDevices.length === 0 ? (
         <p className="text-sm text-gray-400">
           Place panels and connect their terminals to build strings
         </p>
       ) : (
         <>
           <ul className="space-y-2">
-            {strings.map((s, i) => (
-              <li key={i} className="bg-gray-50 rounded p-2">
-                <p className="text-sm font-semibold text-gray-800">Group {i + 1}</p>
-                <p className="text-xs text-gray-500">
-                  {s.seriesCount === 1 && s.parallelCount === 1
-                    ? '1 panel (standalone)'
-                    : s.parallelCount === 1
-                      ? `${s.seriesCount} in series`
-                      : `${s.seriesCount} in series × ${s.parallelCount} in parallel (${s.totalPanels} panels)`}
-                </p>
-              </li>
-            ))}
+            {groups.map((g, i) => {
+              const dest = destLabel(g)
+              return (
+                <li key={i} className="bg-gray-50 rounded p-2">
+                  <p className="text-sm font-semibold text-gray-800">
+                    Group {i + 1}
+                    {dest && (
+                      <span className="ml-1 text-xs font-normal text-blue-600">→ {dest}</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {g.seriesCount === 1 && g.parallelCount === 1
+                      ? '1 panel (standalone)'
+                      : g.parallelCount === 1
+                        ? `${g.seriesCount} in series`
+                        : `${g.seriesCount} in series × ${g.parallelCount} in parallel (${g.totalPanels} panels)`}
+                  </p>
+                </li>
+              )
+            })}
           </ul>
           <p className="mt-3 text-xs text-gray-400">
-            {placedPanels.length} panel{placedPanels.length === 1 ? '' : 's'} ·{' '}
+            {panelDevices.length} panel{panelDevices.length === 1 ? '' : 's'} ·{' '}
             {connections.length} wire{connections.length === 1 ? '' : 's'}
           </p>
         </>

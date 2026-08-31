@@ -10,24 +10,15 @@ const money = (n: number) =>
   n.toLocaleString(undefined, { style: 'currency', currency: 'USD' })
 
 export function PrintBom() {
-  const {
-    placedPanels,
-    selectedInverterId,
-    selectedBatteryId,
-    batterySeries,
-    batteryParallel
-  } = useCanvasStore()
+  const { devices } = useCanvasStore()
   const { panels } = usePanelStore()
   const { inverters } = useInverterStore()
   const { batteries } = useBatteryStore()
   const { projectName } = useProjectStore()
 
-  const inverter = inverters.find((i) => i.id === selectedInverterId) ?? null
-  const battery = batteries.find((b) => b.id === selectedBatteryId) ?? null
-
   const { rows, total } = useMemo(
-    () => computeBom(placedPanels, panels, inverter, battery, batterySeries, batteryParallel),
-    [placedPanels, panels, inverter, battery, batterySeries, batteryParallel]
+    () => computeBom(devices, panels, inverters, batteries),
+    [devices, panels, inverters, batteries]
   )
 
   return (

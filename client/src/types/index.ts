@@ -36,23 +36,34 @@ export interface Battery {
   price: number
 }
 
-export interface PlacedPanel {
+export type DeviceKind =
+  | 'panel'
+  | 'inverter'
+  | 'battery'
+  | 'busbar'
+  | 'combiner'
+  | 'breaker'
+
+export interface PlacedDevice {
   id: string
-  panelId: number
+  kind: DeviceKind
+  refId: number | null
   x: number
   y: number
   width: number
   height: number
+  batterySeries?: number
+  batteryParallel?: number
+  combinerInputs?: number
 }
-
-export type Terminal = 'positive' | 'negative'
 
 export interface Connection {
   id: string
-  fromPanelId: string
-  fromTerminal: Terminal
-  toPanelId: string
-  toTerminal: Terminal
+  fromDeviceId: string
+  fromTerminal: string
+  toDeviceId: string
+  toTerminal: string
+  lengthFt?: number | null
 }
 
 export interface Load {
@@ -62,11 +73,9 @@ export interface Load {
 }
 
 export interface ProjectConfig {
-  placedPanels: PlacedPanel[]
+  version: 2
+  devices: PlacedDevice[]
   connections: Connection[]
-  inverterId: number | null
-  batteryId: number | null
-  batterySeries: number
-  batteryParallel: number
   loads: Load[]
+  pxPerFt: number
 }

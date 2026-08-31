@@ -9,23 +9,14 @@ const money = (n: number) =>
   n.toLocaleString(undefined, { style: 'currency', currency: 'USD' })
 
 export function BomPanel() {
-  const {
-    placedPanels,
-    selectedInverterId,
-    selectedBatteryId,
-    batterySeries,
-    batteryParallel
-  } = useCanvasStore()
+  const { devices } = useCanvasStore()
   const { panels } = usePanelStore()
   const { inverters } = useInverterStore()
   const { batteries } = useBatteryStore()
 
-  const inverter = inverters.find((i) => i.id === selectedInverterId) ?? null
-  const battery = batteries.find((b) => b.id === selectedBatteryId) ?? null
-
   const { rows, total } = useMemo(
-    () => computeBom(placedPanels, panels, inverter, battery, batterySeries, batteryParallel),
-    [placedPanels, panels, inverter, battery, batterySeries, batteryParallel]
+    () => computeBom(devices, panels, inverters, batteries),
+    [devices, panels, inverters, batteries]
   )
 
   return (
@@ -44,7 +35,7 @@ export function BomPanel() {
 
       {rows.length === 0 ? (
         <p className="text-sm text-gray-400">
-          Place panels and assign equipment to generate a BOM
+          Place devices on the canvas to generate a BOM
         </p>
       ) : (
         <>

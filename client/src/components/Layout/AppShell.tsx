@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { SolarCanvas } from '../Canvas/SolarCanvas'
 import { PanelCatalog } from '../Panels/PanelCatalog'
-import { PanelDropdown } from '../Panels/PanelDropdown'
+import { DevicePalette } from '../DevicePalette'
 import { InverterCatalog } from '../Inverter/InverterCatalog'
 import { InverterStatus } from '../Inverter/InverterStatus'
 import { BatteryCatalog } from '../Battery/BatteryCatalog'
@@ -39,11 +39,11 @@ export function AppShell() {
       <header className="bg-gray-900 text-white px-4 py-2 flex items-center justify-between gap-3">
         <h1 className="text-base sm:text-lg font-bold shrink-0">Solar System Planner</h1>
         <ProjectBar />
-        <span className="text-xs text-gray-400 shrink-0 hidden md:inline">Complete</span>
+        <span className="text-xs text-gray-400 shrink-0 hidden md:inline">Phase 1: Device Model</span>
       </header>
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-60 lg:w-72 bg-white border-r border-gray-200 overflow-y-auto p-4 space-y-6">
-          <PanelDropdown />
+          <DevicePalette />
           <hr className="border-gray-200" />
           <PanelCatalog />
           <hr className="border-gray-200 my-4" />

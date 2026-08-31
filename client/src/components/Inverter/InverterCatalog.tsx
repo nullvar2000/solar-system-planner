@@ -1,18 +1,15 @@
 import { useState } from 'react'
 import { useInverterStore } from '../../store/inverters'
-import { useCanvasStore } from '../../store/canvas'
 import { InverterEditor } from './InverterEditor'
 import { Inverter } from '../../types'
 
 export function InverterCatalog() {
   const { inverters, loading, deleteInverter } = useInverterStore()
-  const { selectedInverterId, selectInverter } = useCanvasStore()
   const [editing, setEditing] = useState<Inverter | null>(null)
   const [showEditor, setShowEditor] = useState(false)
 
   const handleDelete = async (id: number) => {
     if (confirm('Delete this inverter?')) {
-      if (selectedInverterId === id) selectInverter(null)
       await deleteInverter(id)
     }
   }
