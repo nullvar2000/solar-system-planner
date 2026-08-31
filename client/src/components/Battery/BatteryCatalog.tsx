@@ -1,18 +1,15 @@
 import { useState } from 'react'
 import { useBatteryStore } from '../../store/batteries'
-import { useCanvasStore } from '../../store/canvas'
 import { BatteryEditor } from './BatteryEditor'
 import { Battery } from '../../types'
 
 export function BatteryCatalog() {
   const { batteries, loading, deleteBattery } = useBatteryStore()
-  const { selectedBatteryId, selectBattery } = useCanvasStore()
   const [editing, setEditing] = useState<Battery | null>(null)
   const [showEditor, setShowEditor] = useState(false)
 
   const handleDelete = async (id: number) => {
     if (confirm('Delete this battery?')) {
-      if (selectedBatteryId === id) selectBattery(null)
       await deleteBattery(id)
     }
   }

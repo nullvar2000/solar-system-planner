@@ -6,8 +6,7 @@ import { bankElectricals } from '../../lib/battery'
 const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })
 
 export function LoadProfilePanel() {
-  const { loads, addLoad, updateLoad, removeLoad, selectedBatteryId, batterySeries, batteryParallel } =
-    useCanvasStore()
+  const { loads, addLoad, updateLoad, removeLoad, devices } = useCanvasStore()
   const { batteries } = useBatteryStore()
 
   const dailyKwh = useMemo(
@@ -15,12 +14,21 @@ export function LoadProfilePanel() {
     [loads]
   )
 
-  const battery = batteries.find((b) => b.id === selectedBatteryId) ?? null
+  const usableWh = useMemo(
+    () =>
+      devices.reduce((sum, d) => {
+        if (d.kind !== 'battery' || d.refId === null) return sum
+        const b = batteries.find((x) => x.id === d.refId)
+        if (!b) return sum
+        return sum + bankElectricals(b, d.batterySeries ?? 1, d.batteryParallel ?? 1).usableWh
+      }, 0),
+    [devices, batteries]
+  )
+
   const autonomyDays = useMemo(() => {
-    if (!battery || dailyKwh <= 0) return null
-    const bank = bankElectricals(battery, batterySeries, batteryParallel)
-    return bank.usableWh / (dailyKwh * 1000)
-  }, [battery, dailyKwh, batterySeries, batteryParallel])
+    if (usableWh <= 0 || dailyKwh <= 0) return null
+    return usableWh / (dailyKwh * 1000)
+  }, [usableWh, dailyKwh])
 
   return (
     <div>
@@ -70,7 +78,7 @@ export function LoadProfilePanel() {
           <span className="text-gray-500">Daily total</span>
           <span className="font-mono">{fmt(dailyKwh)} kWh</span>
         </div>
-        {battery && dailyKwh > 0 && autonomyDays !== null && (
+        {usableWh > 0 && dailyKwh > 0 && autonomyDays !== null && (
           <div className="flex justify-between text-sm mt-1">
             <span className="text-gray-500">Autonomy</span>
             <span
@@ -82,13 +90,13 @@ export function LoadProfilePanel() {
             </span>
           </div>
         )}
-        {battery && dailyKwh > 0 && autonomyDays !== null && autonomyDays < 1 && (
+        {usableWh > 0 && dailyKwh > 0 && autonomyDays !== null && autonomyDays < 1 && (
           <p className="text-xs text-red-600 mt-1">
             Less than one day of autonomy — add batteries or reduce loads
           </p>
         )}
-        {!battery && dailyKwh > 0 && (
-          <p className="text-xs text-gray-400 mt-1">Select a battery bank to calculate autonomy</p>
+        {usableWh === 0 && dailyKwh > 0 && (
+          <p className="text-xs text-gray-400 mt-1">Place a battery bank to calculate autonomy</p>
         )}
       </div>
     </div>

@@ -4,16 +4,7 @@ import { useProjectStore } from '../../store/projects'
 import { ProjectConfig } from '../../types'
 
 export function ProjectBar() {
-  const {
-    placedPanels,
-    connections,
-    selectedInverterId,
-    selectedBatteryId,
-    batterySeries,
-    batteryParallel,
-    loads,
-    restoreState
-  } = useCanvasStore()
+  const { devices, connections, loads, pxPerFt, restoreState } = useCanvasStore()
   const {
     projects,
     currentProjectId,
@@ -28,13 +19,11 @@ export function ProjectBar() {
   const [loadId, setLoadId] = useState('')
 
   const config: ProjectConfig = {
-    placedPanels,
+    version: 2,
+    devices,
     connections,
-    inverterId: selectedInverterId,
-    batteryId: selectedBatteryId,
-    batterySeries,
-    batteryParallel,
-    loads
+    loads,
+    pxPerFt
   }
 
   const handleSave = async () => {
@@ -60,7 +49,7 @@ export function ProjectBar() {
     const name = projectName.trim() || 'solar-design'
     const payload = {
       app: 'solar-system-planner',
-      version: 1,
+      version: 2,
       name,
       exportedAt: new Date().toISOString(),
       config

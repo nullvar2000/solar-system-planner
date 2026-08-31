@@ -60,7 +60,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   loadProject: async (id) => {
     const project = await api.projects.get(id)
     if (!project || !project.config_json) return null
-    const config = JSON.parse(project.config_json) as ProjectConfig
+    let config: ProjectConfig
+    try {
+      config = JSON.parse(project.config_json) as ProjectConfig
+    } catch {
+      set({ error: 'Corrupt project data' })
+      return null
+    }
+    if (!config || config.version !== 2 || !Array.isArray(config.devices)) {
+      set({ error: 'Legacy project — created before circuit support, cannot load' })
+      return null
+    }
     set({ currentProjectId: project.id, projectName: project.name, error: null })
     return config
   },

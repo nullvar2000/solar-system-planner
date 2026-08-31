@@ -1,5 +1,5 @@
-import { Inverter, Panel, PlacedPanel } from '../types'
-import { StringInfo } from './topology'
+import { Inverter, Panel, PlacedDevice } from '../types'
+import { GroupInfo } from './topology'
 
 export const STC_TEMP_C = 25
 export const COLD_TEMP_C = -10
@@ -12,11 +12,12 @@ export interface Electricals {
   vocCold: number
 }
 
-export function panelMap(placedPanels: PlacedPanel[], catalog: Panel[]): Map<string, Panel> {
+export function panelMap(devices: PlacedDevice[], catalog: Panel[]): Map<string, Panel> {
   const byId = new Map(catalog.map((p) => [p.id, p]))
   const map = new Map<string, Panel>()
-  for (const placed of placedPanels) {
-    const p = byId.get(placed.panelId)
+  for (const placed of devices) {
+    if (placed.kind !== 'panel' || placed.refId === null) continue
+    const p = byId.get(placed.refId)
     if (p) map.set(placed.id, p)
   }
   return map
@@ -44,7 +45,7 @@ export function computeStringElectricals(
 }
 
 export function computeGroupElectricals(
-  group: StringInfo,
+  group: GroupInfo,
   panels: Map<string, Panel>
 ): Electricals {
   const strings = group.seriesStrings.map((run) => computeStringElectricals(run, panels))
@@ -59,7 +60,7 @@ export function computeGroupElectricals(
 }
 
 export function computeArrayElectricals(
-  groups: StringInfo[],
+  groups: GroupInfo[],
   panels: Map<string, Panel>
 ): Electricals {
   if (groups.length === 0) return { v: 0, a: 0, w: 0, voc: 0, vocCold: 0 }
@@ -159,7 +160,7 @@ export interface ProductionEstimate {
 }
 
 export function estimateProduction(
-  placedPanels: PlacedPanel[],
+  devices: PlacedDevice[],
   catalog: Panel[],
   peakSunHours: number,
   ambientC: number
@@ -168,8 +169,9 @@ export function estimateProduction(
   const byId = new Map(catalog.map((p) => [p.id, p]))
   let pmax = 0
   let weighted = 0
-  for (const placed of placedPanels) {
-    const p = byId.get(placed.panelId)
+  for (const placed of devices) {
+    if (placed.kind !== 'panel' || placed.refId === null) continue
+    const p = byId.get(placed.refId)
     if (!p) continue
     pmax += p.pmax
     weighted += p.pmax * deratingFactor(p.temp_coeff_v, tCell)
@@ -187,31 +189,42 @@ export function estimateProduction(
   }
 }
 
-export function validateInverter(
+export function validatePlacedInverter(
   inverter: Inverter,
-  groups: StringInfo[],
+  groupsByInput: Map<number, GroupInfo>,
   panels: Map<string, Panel>
 ): InverterValidation {
-  if (groups.length === 0) return { status: 'ok', checks: [] }
+  const n = inverter.max_pv_inputs
+  const checks: MpptCheck[] = []
+  let totalW = 0
 
-  const stringElectricals = groups.flatMap((g) =>
-    g.seriesStrings.map((run) => computeStringElectricals(run, panels))
-  )
-  const maxVocCold = Math.max(...stringElectricals.map((s) => s.vocCold))
-  const minVmp = Math.min(...stringElectricals.map((s) => s.v))
-  const array = computeArrayElectricals(groups, panels)
+  for (let i = 0; i < n; i++) {
+    const group = groupsByInput.get(i)
+    if (!group) continue
+    const e = computeGroupElectricals(group, panels)
+    totalW += e.w
+    const voc = upperLimitCheck(`Voc (cold ${COLD_TEMP_C}°C)`, e.vocCold, inverter.mppt_max_v, 'V')
+    const vmp = lowerLimitCheck('Vmp', e.v, inverter.mppt_min_v, 'V')
+    const amp = upperLimitCheck('Current', e.a, inverter.max_input_a, 'A')
+    const statuses = [voc.status, vmp.status, amp.status]
+    const inputStatus: CheckStatus = statuses.includes('fail')
+      ? 'fail'
+      : statuses.includes('warn')
+        ? 'warn'
+        : 'ok'
+    checks.push({
+      label: `MPPT ${i + 1}`,
+      status: inputStatus,
+      detail: `Voc ${e.vocCold.toFixed(1)}V · Vmp ${e.v.toFixed(1)}V · ${e.a.toFixed(1)}A`
+    })
+  }
 
-  const checks: MpptCheck[] = [
-    upperLimitCheck(`Voc (cold ${COLD_TEMP_C}°C)`, maxVocCold, inverter.mppt_max_v, 'V'),
-    lowerLimitCheck('Vmp', minVmp, inverter.mppt_min_v, 'V'),
-    upperLimitCheck('Current', array.a, inverter.max_input_a, 'A'),
-    upperLimitCheck('Power', array.w, inverter.max_power_w, 'W'),
-    {
-      label: 'PV inputs',
-      status: groups.length > inverter.max_pv_inputs ? 'fail' : 'ok',
-      detail: `${groups.length} / max ${inverter.max_pv_inputs}`
-    }
-  ]
+  checks.push(upperLimitCheck('Power', totalW, inverter.max_power_w, 'W'))
+  checks.push({
+    label: 'PV inputs',
+    status: 'ok',
+    detail: `${groupsByInput.size} / ${n} in use`
+  })
 
   const status: CheckStatus = checks.some((c) => c.status === 'fail')
     ? 'fail'

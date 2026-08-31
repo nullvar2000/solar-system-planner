@@ -1,22 +1,33 @@
 import { Line } from 'react-konva'
-import { Connection, PlacedPanel } from '../../types'
-import { getTerminalPosition } from './PanelNode'
+import { Connection, PlacedDevice } from '../../types'
+import { useInverterStore } from '../../store/inverters'
+import { POLARITY_COLORS, getTerminalPosition, terminalPolarity } from '../../lib/terminals'
 
 interface Props {
   connection: Connection
-  placedPanels: PlacedPanel[]
+  devices: PlacedDevice[]
   isSelected: boolean
   onSelect: (id: string) => void
 }
 
-export function ConnectionLine({ connection, placedPanels, isSelected, onSelect }: Props) {
-  const fromPanel = placedPanels.find((p) => p.id === connection.fromPanelId)
-  const toPanel = placedPanels.find((p) => p.id === connection.toPanelId)
-  if (!fromPanel || !toPanel) return null
+export function ConnectionLine({ connection, devices, isSelected, onSelect }: Props) {
+  const { inverters } = useInverterStore()
+  const fromDevice = devices.find((d) => d.id === connection.fromDeviceId)
+  const toDevice = devices.find((d) => d.id === connection.toDeviceId)
+  if (!fromDevice || !toDevice) return null
 
-  const from = getTerminalPosition(fromPanel, connection.fromTerminal)
-  const to = getTerminalPosition(toPanel, connection.toTerminal)
-  const color = connection.fromTerminal === 'positive' ? '#ef4444' : '#3b82f6'
+  const inverterFor = (d: PlacedDevice) =>
+    d.kind === 'inverter' && d.refId !== null
+      ? inverters.find((i) => i.id === d.refId) ?? null
+      : null
+
+  const from = getTerminalPosition(fromDevice, connection.fromTerminal, inverterFor(fromDevice))
+  const to = getTerminalPosition(toDevice, connection.toTerminal, inverterFor(toDevice))
+  if (!from || !to) return null
+
+  let polarity = terminalPolarity(fromDevice, connection.fromTerminal)
+  if (polarity === 'any') polarity = terminalPolarity(toDevice, connection.toTerminal)
+  const color = POLARITY_COLORS[polarity]
 
   const sag = Math.max(from.y, to.y) + 25 + Math.abs(to.x - from.x) * 0.08
   const cx = (from.x + to.x) / 2

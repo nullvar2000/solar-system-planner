@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computeBom } from './bom'
-import type { Battery, Inverter, Panel, PlacedPanel } from '../types'
+import type { Battery, Inverter, Panel, PlacedDevice } from '../types'
 
 const panel = (id: number, model: string, price: number): Panel => ({
   id,
@@ -40,53 +40,131 @@ const battery: Battery = {
   price: 800
 }
 
-const placed = (id: string, panelId: number): PlacedPanel => ({
+const placedPanel = (id: string, refId: number): PlacedDevice => ({
   id,
-  panelId,
+  kind: 'panel',
+  refId,
   x: 0,
   y: 0,
   width: 40,
   height: 40
 })
 
+const placedInverter = (id: string, refId: number): PlacedDevice => ({
+  id,
+  kind: 'inverter',
+  refId,
+  x: 0,
+  y: 0,
+  width: 140,
+  height: 100
+})
+
+const placedBattery = (
+  id: string,
+  refId: number,
+  series = 1,
+  parallel = 1
+): PlacedDevice => ({
+  id,
+  kind: 'battery',
+  refId,
+  x: 0,
+  y: 0,
+  width: 110,
+  height: 80,
+  batterySeries: series,
+  batteryParallel: parallel
+})
+
+const placedCombiner = (id: string): PlacedDevice => ({
+  id,
+  kind: 'combiner',
+  refId: null,
+  x: 0,
+  y: 0,
+  width: 150,
+  height: 90,
+  combinerInputs: 4
+})
+
+const placedBreaker = (id: string): PlacedDevice => ({
+  id,
+  kind: 'breaker',
+  refId: null,
+  x: 0,
+  y: 0,
+  width: 48,
+  height: 64
+})
+
+const placedBusbar = (id: string): PlacedDevice => ({
+  id,
+  kind: 'busbar',
+  refId: null,
+  x: 0,
+  y: 0,
+  width: 220,
+  height: 48
+})
+
 describe('computeBom', () => {
   it('counts placed panels per model and prices the full system', () => {
     const { rows, total } = computeBom(
-      [placed('a', 1), placed('b', 1), placed('c', 2)],
+      [
+        placedPanel('a', 1),
+        placedPanel('b', 1),
+        placedPanel('c', 2),
+        placedInverter('inv', 1),
+        placedBattery('bat', 1, 2, 2)
+      ],
       [panel(1, 'ST-200', 200), panel(2, 'ST-300', 300)],
-      inverter,
-      battery,
-      2,
-      2
+      [inverter],
+      [battery]
     )
     expect(rows).toEqual([
-      { label: 'SunTech ST-200 panel', qty: 2, unitPrice: 200 },
-      { label: 'SunTech ST-300 panel', qty: 1, unitPrice: 300 },
-      { label: 'PowMax PM-1500 inverter', qty: 1, unitPrice: 600 },
-      { label: 'VoltCore VC-100 battery', qty: 4, unitPrice: 800 }
+      { label: 'SunTech ST-200', qty: 2, unitPrice: 200 },
+      { label: 'SunTech ST-300', qty: 1, unitPrice: 300 },
+      { label: 'PowMax PM-1500', qty: 1, unitPrice: 600 },
+      { label: 'VoltCore VC-100', qty: 4, unitPrice: 800 }
     ])
     expect(total).toBeCloseTo(2 * 200 + 300 + 600 + 4 * 800)
   })
 
-  it('omits inverter and battery rows when unconfigured', () => {
-    const { rows, total } = computeBom(
-      [placed('a', 1)],
-      [panel(1, 'ST-200', 200)],
-      null,
-      null,
-      0,
-      0
+  it('sums battery cells across multiple placed banks of the same model', () => {
+    const { rows } = computeBom(
+      [placedBattery('bat1', 1, 1, 1), placedBattery('bat2', 1, 2, 1)],
+      [],
+      [],
+      [battery]
     )
-    expect(rows).toEqual([{ label: 'SunTech ST-200 panel', qty: 1, unitPrice: 200 }])
+    expect(rows).toEqual([{ label: 'VoltCore VC-100', qty: 3, unitPrice: 800 }])
+  })
+
+  it('lists combiners, breakers and busbars at fixed prices', () => {
+    const { rows, total } = computeBom(
+      [placedCombiner('cb'), placedBreaker('brk'), placedBusbar('bus')],
+      [],
+      [],
+      []
+    )
+    expect(rows).toEqual([
+      { label: 'Combiner box', qty: 1, unitPrice: 120 },
+      { label: 'DC breaker / disconnect', qty: 1, unitPrice: 40 },
+      { label: 'DC busbar', qty: 1, unitPrice: 75 }
+    ])
+    expect(total).toBeCloseTo(120 + 40 + 75)
+  })
+
+  it('omits rows for unplaced equipment', () => {
+    const { rows, total } = computeBom([placedPanel('a', 1)], [panel(1, 'ST-200', 200)], [inverter], [battery])
+    expect(rows).toEqual([{ label: 'SunTech ST-200', qty: 1, unitPrice: 200 }])
     expect(total).toBeCloseTo(200)
   })
 
-  it('handles placed panels missing from the catalog', () => {
-    const { rows, total } = computeBom([placed('a', 99)], [], null, null, 0, 0)
-    expect(rows).toHaveLength(1)
-    expect(rows[0].qty).toBe(1)
-    expect(rows[0].unitPrice).toBe(0)
-    expect(rows[0].label).toContain('Unknown')
+  it('skips placed panels missing from the catalog', () => {
+    const { rows, total } = computeBom([placedPanel('a', 99)], [], [inverter], [battery])
+    expect(rows).toHaveLength(0)
     expect(total).toBe(0)
   })
 })

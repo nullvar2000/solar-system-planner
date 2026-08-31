@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useCanvasStore } from '../../store/canvas'
 import { usePanelStore } from '../../store/panels'
-import { analyzeStrings } from '../../lib/topology'
+import { findStrings } from '../../lib/topology'
 import {
   calculateWireGauge,
   computeArrayElectricals,
@@ -9,16 +9,16 @@ import {
 } from '../../lib/electrical'
 
 export function WireGaugePanel() {
-  const { placedPanels, connections } = useCanvasStore()
+  const { devices, connections } = useCanvasStore()
   const { panels } = usePanelStore()
 
   const groups = useMemo(
-    () => analyzeStrings(placedPanels, connections),
-    [placedPanels, connections]
+    () => findStrings(devices, connections),
+    [devices, connections]
   )
   const panelByPlacedId = useMemo(
-    () => panelMap(placedPanels, panels),
-    [placedPanels, panels]
+    () => panelMap(devices, panels),
+    [devices, panels]
   )
   const array = useMemo(
     () => computeArrayElectricals(groups, panelByPlacedId),
