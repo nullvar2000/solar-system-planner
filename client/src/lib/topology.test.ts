@@ -237,8 +237,8 @@ describe('canConnect', () => {
     expect(canConnect({ deviceId: 'p1', terminal: '-' }, { deviceId: 'p2', terminal: '-' }, devices, [])).toBe(true)
   })
 
-  it('rejects mismatched polarities', () => {
-    expect(canConnect({ deviceId: 'p1', terminal: '+' }, { deviceId: 'p2', terminal: '-' }, devices, [])).toBe(false)
+  it('allows series wiring (positive to negative)', () => {
+    expect(canConnect({ deviceId: 'p1', terminal: '+' }, { deviceId: 'p2', terminal: '-' }, devices, [])).toBe(true)
   })
 
   it('rejects a terminal wired to its own device', () => {

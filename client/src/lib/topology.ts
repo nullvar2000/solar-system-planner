@@ -55,7 +55,10 @@ export function canConnect(
   if (!a || !b) return false
   const pa = terminalPolarity(a, from.terminal)
   const pb = terminalPolarity(b, to.terminal)
-  if (pa !== 'any' && pb !== 'any' && pa !== pb) return false
+  // A wire is just a conductor: DC may pair with DC in any polarity
+  // (series = + to −, parallel = + to +). Only AC is restricted to AC.
+  if (pa === 'ac' && pb !== 'ac' && pb !== 'any') return false
+  if (pb === 'ac' && pa !== 'ac' && pa !== 'any') return false
   if (terminalWireCount(from.deviceId, from.terminal, connections) >= terminalCapacity(a, from.terminal)) {
     return false
   }
